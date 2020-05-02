@@ -1,0 +1,57 @@
+# Cloud Architecture : Challenge Lab
+# Powered by https://www.qwiklabs.com/
+
+## Task 1: Create Production Environment
+Create Prod network using Jumphost
+Login to jumphost via SSH button or cloudshell 
+$ gcloud compute ssh kraken-jumphost --internal-ip --zone us-east1-b
+$ cd /work/dm
+$ sed -i s/SET_REGION/us-east1/g prod-network.yaml
+$ gcloud deployment-manager deployments create prod-network --config=prod-network.yaml
+
+Creating the production kubernetes cluster and launch the application
+$ gcloud config set compute/zone us-east1-b
+$ gcloud container clusters create kraken-prod --num-nodes 2 --network kraken-prod-vpc --subnetwork kraken-prod-subnet
+$ gcloud container clusters get-credentials kraken-prod
+$ cd /work/k8s
+$ for F in $(ls *.yaml); do kubectl create -f $F; done
+
+## Wait 1-2 minutes and check the scors
+
+
+## Task 2: Configure the admin host
+Create kraken-admin
+$ gcloud config set compute/zone us-east1-b
+$ gcloud compute instances create kraken-admin --network-interface="subnet=kraken-mgmt-subnet" --network-interface="subnet=kraken-prod-subnet"
+
+Create alert:
+1. Open monitoring in left menu
+2. Create an alert policy
+3. Configure the policy to email your email when jumphost is cpu utilization is above 50% for 1 min, set filter instance_name = kraken-admin
+
+
+## Task 3: Verify the Spinnaker deployment​
+1. Wait to end of provisioning the lab resources if not yet finish.
+2. open cloudshell
+
+$ gcloud config set compute/zone us-east1-b
+$ gcloud container clusters get-credentials spinnaker-tutorial
+$ POD=$(kubectl get pods --namespace default -l "cluster=spin-deck" -o jsonpath="{.items[0].metadata.name}")
+$ kubectl port-forward --namespace default $POD 8080:9000 >> /dev/null &
+
+3. Go to cloudshell webpreview and go to applications -> sample
+4. Open pipelines and manually run the pipeline if it has not already running. Approve the deployment to production. Check the production frontend endpoint
+5. Back to cloudshell run these commands to push a change
+
+$ gcloud config set compute/zone us-east1-b
+$ gcloud source repos clone sample-app
+$ cd sample-app
+$ touch "Hello World!" > hello.txt
+$ git config --global user.email "$(gcloud config get-value account)"
+$ git config --global user.name "<YOUR_NAME>"
+$ git commit -a -m "change"
+$ git tag v1.0.1
+$ git push --tags
+
+## Wait 1-2 minutes and check the scors
+
